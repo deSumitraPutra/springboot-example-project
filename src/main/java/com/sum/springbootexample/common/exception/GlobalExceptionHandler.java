@@ -14,11 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingPathVariableException;
-import org.springframework.web.bind.MissingRequestHeaderException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.bind.*;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -68,8 +64,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * @return a JSON formatted response containing the ex details and additional fields
      */
     @ExceptionHandler({BusinessException.class})
-    public ResponseEntity<Object> handleCustomUncaughtBusinessException(final BusinessException ex,
-                                                                        final ServletWebRequest request) {
+    public ResponseEntity<Object> handleCustomUncaughtBusinessException(final BusinessException ex, final ServletWebRequest request) {
         log(ex, request);
         final ErrorResponseDTO errorResponseDTO = build(ex.getSource(), ex.getMessage(), ex.getHttpStatus());
         return ResponseEntity.status(ex.getHttpStatus()).body(errorResponseDTO);
@@ -83,8 +78,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * @return a JSON formatted response containing the ex details and additional fields
      */
     @ExceptionHandler({ApplicationException.class})
-    public ResponseEntity<Object> handleCustomUncaughtApplicationException(final ApplicationException ex,
-                                                                           final ServletWebRequest request) {
+    public ResponseEntity<Object> handleCustomUncaughtApplicationException(final ApplicationException ex, final ServletWebRequest request) {
         log(ex, request);
         final ErrorResponseDTO errorResponseDTO = build(ex.getSource(), ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponseDTO);
@@ -148,8 +142,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * @return a JSON formatted response containing the ex details and additional fields
      */
     protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(
-            final HttpRequestMethodNotSupportedException ex, final HttpHeaders headers, final HttpStatus status,
-            final WebRequest request) {
+            final HttpRequestMethodNotSupportedException ex,
+            final HttpHeaders headers,
+            final HttpStatus status,
+            final WebRequest request
+    ) {
         log(ex, (ServletWebRequest) request);
         final ErrorResponseDTO errorResponseDTO = build(HttpRequestMethodNotSupportedException.class.getSimpleName(), ex.getMessage(),
                 HttpStatus.METHOD_NOT_ALLOWED);
@@ -163,8 +160,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * @param request the request on which the ex occurred
      * @return a JSON formatted response containing the ex details and additional fields
      */
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(final MethodArgumentNotValidException ex,
-                                                                  final HttpHeaders headers, final HttpStatus status, final WebRequest request) {
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            final MethodArgumentNotValidException ex,
+            final HttpHeaders headers,
+            final HttpStatus status,
+            final WebRequest request
+    ) {
         log(ex, (ServletWebRequest) request);
         final List<InvalidParameterDTO> invalidParameters = ex.getBindingResult().getFieldErrors().stream()
                 .map(fieldError -> InvalidParameterDTO.builder()
@@ -211,8 +212,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .message(format("Missing %s parameter with name '%s'", missingParameterType, missingParameter))
                 .build();
 
-        final ErrorResponseDTO errorResponseDTO = build(ServletRequestBindingException.class.getSimpleName(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(), HttpStatus.BAD_REQUEST, singletonList(missingParameterDTO));
+        final ErrorResponseDTO errorResponseDTO = build(
+                ServletRequestBindingException.class.getSimpleName(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                HttpStatus.BAD_REQUEST,
+                singletonList(missingParameterDTO));
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponseDTO);
     }
@@ -268,26 +272,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private void log(final Exception ex, final ServletWebRequest request) {
-        final Optional<HttpMethod> httpMethod;
-        final Optional<String> requestUrl;
+        Optional<HttpMethod> httpMethod = Optional.empty();
+        Optional<String> requestUrl = Optional.empty();
 
         final Optional<ServletWebRequest> possibleIncomingNullRequest = Optional.ofNullable(request);
         if (possibleIncomingNullRequest.isPresent()) {
-            // get the HTTP Method
-            httpMethod = Optional.of(possibleIncomingNullRequest.get().getHttpMethod());
-            if (Optional.of(possibleIncomingNullRequest.get().getRequest()).isPresent()) {
-                // get the Request URL
-                requestUrl = Optional.of(possibleIncomingNullRequest.get().getRequest().getRequestURL().toString());
-            } else {
-                requestUrl = Optional.empty();
-            }
-        } else {
-            httpMethod = Optional.empty();
-            requestUrl = Optional.empty();
+            ServletWebRequest servletWebRequest = possibleIncomingNullRequest.get();
+            httpMethod = Optional.of(servletWebRequest.getHttpMethod());
+            requestUrl = Optional.of(servletWebRequest.getRequest()).map(httpServletRequest -> httpServletRequest.getRequestURL().toString());
         }
 
-        log.error("Request {} {} failed with exception reason: {}", (httpMethod.isPresent() ? httpMethod.get() : "'null'"),
-                (requestUrl.orElse("'null'")), ex.getMessage(), ex);
+        Object method = httpMethod.isPresent() ? httpMethod.get() : "'null'";
+        String url = requestUrl.orElse("'null'");
+        log.error("Request {} {} failed with exception reason: {}", method, url, ex.getMessage(), ex);
     }
-
 }
